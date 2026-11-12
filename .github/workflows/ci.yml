@@ -88,7 +88,7 @@ jobs:
         env:
           PEER_CONSULT_PYTHON: python
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: office-ui/test-results
@@ -116,7 +116,7 @@ jobs:
           grep -q -- '-I -m peer_consult ask --caller claude --target codex' /tmp/fake-home/.claude/skills/ask-codex/SKILL.md
           /tmp/clean/bin/python -I -c "import peer_consult.office_server as o; d = o.find_office_dist(); assert d and (d / 'index.html').is_file(), d; print(d)"
           /tmp/clean/bin/peer-consult uninstall --home /tmp/fake-home
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
