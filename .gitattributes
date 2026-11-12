@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+peer_consult/office_dist/** linguist-generated=true
+office-ui/package-lock.json linguist-generated=true

@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+  - package-ecosystem: npm
+    directory: "/office-ui"
+    schedule:
+      interval: monthly
+    groups:
+      office-ui:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

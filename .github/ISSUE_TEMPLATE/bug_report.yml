@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include API keys, tokens, auth files or private code. For security issues use
+        **Security → Report a vulnerability** instead of a public issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact command, and the request packet if relevant (redacted).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `peer-consult doctor`
+      description: Redact anything private. It lists versions, executables and skill locations.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: peer-consult version (`peer-consult --version`)
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true

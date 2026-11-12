@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Office UI
+office-ui/node_modules/
+office-ui/dist/
+office-ui/test-results/
+office-ui/playwright-report/
+office-ui/node_modules/.vite/
+# peer_consult/office_dist/ IS committed so `pip install git+https://...` ships a working office UI.
+
+# Test scratch
+tests/.e2e_repo_path
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Never commit local config or credentials
+.env
+.env.*
+*.peer-consult-new

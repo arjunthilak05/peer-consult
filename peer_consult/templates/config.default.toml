@@ -1,0 +1,55 @@
+# peer-consult configuration. Per-call overrides: --model, --effort, --timeout.
+# There is no automatic fallback: if a model/effort is unavailable the call fails loudly.
+
+[codex]
+# Documented as Codex's most capable model ("Astra"); verified usable on this account.
+model = "gpt-6-astra"
+# Highest non-delegating effort. "ultra" is rejected: it delegates to subagents.
+effort = "max"
+# Optional explicit argv prefix, e.g. ["C:/Program Files/nodejs/node.exe", "C:/.../codex.js"].
+command = []
+
+[claude]
+model = "@@CLAUDE_MODEL@@"
+effort = "max"
+# "inherit": the adviser uses whatever auth `claude` normally picks (ANTHROPIC_API_KEY wins in -p mode).
+# "subscription": drop ANTHROPIC_API_KEY from the adviser's environment only, so the existing
+#                 claude.ai subscription login is used.
+auth = "@@CLAUDE_AUTH@@"
+command = []
+
+[agy]
+# Google Antigravity CLI. `agy models` lists gemini-4-argon-low/medium/high; the CLI rejects
+# "max" for this model ("available: low, medium, high"), so "high" is its highest effort.
+model = "gemini-4-argon"
+effort = "high"
+command = []
+
+[limits]
+timeout_seconds = 1200
+max_request_chars = 200000      # packet size limit; oversized packets are refused, never truncated
+max_stdout_bytes = 16000000
+max_stderr_bytes = 1000000
+transient_retries = 1           # only for clearly transient failures (overload/5xx/network)
+retry_backoff_seconds = 20
+heartbeat_seconds = 30
+
+[budget]
+max_consultations_per_task = 2  # one consultation + one follow-up per task_id
+
+[council]
+chair = "claude"                # synthesis chair: "claude", "codex", or "agy"
+quorum = 3                      # required successful advisers per council round (1..3)
+max_concurrency = 3             # max concurrent adviser subprocesses (1..3)
+stage_timeout_seconds = 900     # per-stage timeout for council rounds
+anonymize_proposals = true      # mask proposals as Proposal A/B/C during cross-critique
+
+[execute]
+default_writer = "claude"       # single writer for `council execute` unless overridden
+max_repairs = 2                 # controlled repair attempts after test/review rejection (0..2)
+require_approval = true         # require explicit approval before executing a plan
+worktree_base_dir = ""          # optional directory for isolated Git worktrees
+
+[office]
+host = "127.0.0.1"              # bind address for the Pixel-Art AI Council Office server
+port = 4173                     # default HTTP + WebSocket port for the Pixel Office UI
