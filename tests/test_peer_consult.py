@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -52,7 +53,7 @@ def env(tmp_path):
 
     def ask(target, req, mode="ok", extra=(), env_over=None, timeout=120, caller=None):
         caller = caller or ("codex" if target == "claude" else "claude")
-        rf = tmp_path / f"req {time.time_ns()} ü.json"
+        rf = tmp_path / f"req {uuid.uuid4().hex} ü.json"  # time_ns() ticks every ~15 ms on Windows < 3.13
         rf.write_text(json.dumps(req, ensure_ascii=False), encoding="utf-8")
         ev = dict(e, FAKE_MODE=mode, **(env_over or {}))
         p = subprocess.run([*CLI, "ask", "--caller", caller, "--target", target,
@@ -70,7 +71,7 @@ def env(tmp_path):
 
 
 def req(**kw):
-    r = {"task_id": f"t{time.time_ns()}", "question": "What next?", "help_type": "diagnosis"}
+    r = {"task_id": f"t{uuid.uuid4().hex[:12]}", "question": "What next?", "help_type": "diagnosis"}
     r.update(kw)
     return r
 
@@ -375,7 +376,7 @@ def test_budget_per_task(env):
 def test_concurrent_requests_isolated(env):
     with ThreadPoolExecutor(6) as ex:
         results = list(ex.map(lambda i: env.ask("codex" if i % 2 else "claude", req(task_id=f"c{i}")), range(6)))
-    assert all(c == 0 for c, _, _ in results), [o for _, o, _ in results]
+    assert all(c == 0 for c, _, _ in results), [(c, o.get("task_id"), o.get("error"), e[-800:]) for c, o, e in results if c != 0]
     recs = env.records()
     assert len(recs) == 6
     cwds = {r["cwd"] for r in recs}
