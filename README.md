@@ -274,8 +274,11 @@ pipx uninstall peer-consult                         # then remove the package
 `uninstall` keeps `~/.peer-consult` (config, run history, budget state). Delete it by hand if you
 want a clean slate.
 
-If you used the pre-package `install.py`, run `peer-consult setup` once. It removes the old
+If you used the pre-package `install.py`, its old `peer-consult` launcher may block the new
+command. Install with `--force` (`pipx install --force peer-consult` or
+`uv tool install --force peer-consult`), then run `peer-consult setup` once. Setup removes the old
 `~/.peer-consult/runtime` copy and launchers, but only files it wrote that you have not modified.
+It warns if the old launcher is still first on `PATH`.
 
 ## Known limitations
 
@@ -307,7 +310,7 @@ ruff check .
 cd office-ui && npm ci
 npm test                  # Vitest
 npm run build             # rebuilds peer_consult/office_dist (commit the result)
-npx playwright install chromium && npx playwright test   # browser end-to-end
+npx playwright install chromium && npx playwright test   # browser end-to-end (UPDATE_DOCS_SCREENSHOTS=1 refreshes docs/screenshots)
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

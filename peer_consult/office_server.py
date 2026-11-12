@@ -23,7 +23,7 @@ from .config import PROVIDERS, ConfigError, home_dir
 from .council import CouncilOrchestrator
 from .office_settings import model_settings, save_models
 from .request import load_request
-from .state import CouncilStore, scrub_data
+from .state import CouncilStore, create_private_file, ensure_private_dir, restrict_to_owner, scrub_data
 
 AGENT_METADATA: dict[str, dict[str, Any]] = {
     "claude": {
@@ -58,14 +58,17 @@ def load_or_create_office_token(state_dir: Path | None = None, explicit_token: s
     if explicit_token:
         return explicit_token
     base = state_dir or (home_dir() / "state")
-    base.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(base)
     token_file = base / "office-token"
     if token_file.exists():
+        restrict_to_owner(token_file)  # tighten tokens written by older releases
         existing = token_file.read_text(encoding="utf-8").strip()
         if len(existing) >= 16:
             return existing
+        token_file.unlink(missing_ok=True)  # truncated or corrupt: regenerate
     token = secrets.token_urlsafe(24)
-    token_file.write_text(token, encoding="utf-8")
+    if not create_private_file(token_file, token.encode("utf-8")):
+        return token_file.read_text(encoding="utf-8").strip()  # a concurrent server created it first
     return token
 
 
@@ -588,15 +591,9 @@ def compute_office_snapshot(
 
 
 def find_office_dist() -> Path | None:
-    """The built office UI: shipped inside the package, or a dev build in a source checkout."""
-    candidates = [
-        Path(__file__).resolve().parent / "office_dist",
-        Path(__file__).resolve().parent.parent / "office-ui" / "dist",
-    ]
-    for c in candidates:
-        if (c / "index.html").is_file():
-            return c
-    return None
+    """The built office UI, shipped inside the package (`npm run build` in office-ui/ writes it there)."""
+    dist = Path(__file__).resolve().parent / "office_dist"
+    return dist if (dist / "index.html").is_file() else None
 
 
 def create_office_app(
@@ -1029,7 +1026,8 @@ def run_office_server(
             "plan execution to every machine that can reach this port (bearer token required). Prefer 127.0.0.1\n"
             "and an SSH tunnel for remote access.\n"
         )
-    url = f"http://{host}:{port}/?token={token}"
+    url_host = f"[{host}]" if ":" in host else host  # IPv6 literals need brackets in URLs
+    url = f"http://{url_host}:{port}/?token={token}"
     sys.stderr.write(f"Pixel-Art AI Council Office running at: {url}\n")
     sys.stderr.flush()
     if open_browser:

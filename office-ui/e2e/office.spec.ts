@@ -7,7 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const TOKEN = 'e2e-office-token-0123456789';
-const SHOTS = '../docs/screenshots';
+// Set UPDATE_DOCS_SCREENSHOTS=1 to refresh the README screenshots in docs/screenshots from this run.
+const SHOTS = process.env.UPDATE_DOCS_SCREENSHOTS ? '../docs/screenshots' : 'test-results/screenshots';
 
 test('unauthenticated API access is rejected', async ({ request }) => {
   const r = await request.get('/api/state');

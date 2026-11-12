@@ -100,14 +100,19 @@ def template(name: str) -> str:
     return resources.files("peer_consult").joinpath("templates", name).read_text(encoding="utf-8")
 
 
+def mkey(path: Path | str) -> str:
+    """Manifest key: absolute and, on Windows, case-normalized, so the same file always maps to one key."""
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
 def peer_consult_home(home: Path) -> Path:
     env = os.environ.get("PEER_CONSULT_HOME")
-    return Path(env) if env else home / ".peer-consult"
+    return Path(env).absolute() if env else home / ".peer-consult"
 
 
 def skill_roots(home: Path) -> dict[str, Path]:
-    claude_dir = Path(os.environ["CLAUDE_CONFIG_DIR"]) if os.environ.get("CLAUDE_CONFIG_DIR") else home / ".claude"
-    codex_dir = Path(os.environ["CODEX_HOME"]) if os.environ.get("CODEX_HOME") else home / ".codex"
+    claude_dir = Path(os.environ["CLAUDE_CONFIG_DIR"]).absolute() if os.environ.get("CLAUDE_CONFIG_DIR") else home / ".claude"
+    codex_dir = Path(os.environ["CODEX_HOME"]).absolute() if os.environ.get("CODEX_HOME") else home / ".codex"
     return {"claude": claude_dir / "skills", "codex": codex_dir / "skills",
             "agy": home / ".gemini" / "config" / "skills"}
 
@@ -116,9 +121,11 @@ def probe_interpreter_flags(python: str) -> list[str]:
     """Return the safest interpreter flags under which ``python -m peer_consult`` imports.
 
     ``-I`` (isolated: ignore PYTHON* variables and user site-packages, no cwd on sys.path) is preferred.
-    A ``pip install --user`` lives in user site-packages, which ``-I`` hides, so ``-E`` is the fallback.
+    A ``pip install --user`` lives in user site-packages, which ``-I`` hides, so ``-E -P`` is the fallback.
+    ``-P`` is essential there: with ``-m``, Python otherwise puts the cwd first on sys.path, and skills run
+    inside arbitrary repositories, where a planted ``typer.py`` would be imported.
     """
-    for flags in (["-I"], ["-E"]):
+    for flags in (["-I"], ["-E", "-P"]):
         try:
             p = subprocess.run([python, *flags, "-m", "peer_consult", "--version"], capture_output=True,
                                text=True, timeout=60, cwd=str(Path.home()))
@@ -143,9 +150,10 @@ class Installer:
         self.quiet = quiet
         self.manifest_path = self.root / "install-manifest.json"
         try:
-            self.manifest: dict[str, str] = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+            raw: dict[str, str] = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
-            self.manifest = {}
+            raw = {}
+        self.manifest: dict[str, str] = {mkey(k): v for k, v in raw.items()}
         self.report: list[str] = []
 
     # -- helpers ---------------------------------------------------------------------------------
@@ -156,12 +164,12 @@ class Installer:
 
     def ours_unmodified(self, path: Path) -> bool:
         try:
-            return self.manifest.get(str(path)) == sha(path.read_bytes())
+            return self.manifest.get(mkey(path)) == sha(path.read_bytes())
         except OSError:
             return False
 
     def put(self, dest: Path, data: bytes) -> None:
-        key = str(dest)
+        key = mkey(dest)
         new_hash = sha(data)
         if dest.exists():
             cur = dest.read_bytes()
@@ -190,16 +198,19 @@ class Installer:
         self.log(f"wrote      {dest}")
 
     def remove_if_ours(self, path: Path, reason: str) -> None:
+        key = mkey(path)
         if not path.exists():
-            self.manifest.pop(str(path), None)
+            self.manifest.pop(key, None)
             return
         if self.ours_unmodified(path):
             if not self.dry:
                 path.unlink()
-            self.manifest.pop(str(path), None)
             self.log(f"removed    {path} ({reason})")
-        elif str(path) in self.manifest:
-            self.log(f"LEFT       {path} (modified since peer-consult wrote it)")
+        elif key in self.manifest:
+            # Changed since we wrote it (by the user, or replaced by e.g. pipx's own launcher): it is no
+            # longer ours, so stop tracking it instead of reporting it on every run.
+            self.log(f"LEFT       {path} (changed since peer-consult wrote it; no longer managed)")
+        self.manifest.pop(key, None)
 
     def prune_empty(self, *dirs: Path) -> None:
         for d in dirs:
@@ -216,14 +227,20 @@ class Installer:
 
     # -- setup -----------------------------------------------------------------------------------
     def run(self, claude_model: str | None, claude_auth: str | None, flags: list[str]) -> int:
-        cfg = self.write_config(claude_model, claude_auth)
-        self.write_skills(flags)
-        self.migrate_legacy()
-        self.save_manifest()
+        try:
+            cfg = self.write_config(claude_model, claude_auth)
+            self.write_skills(flags)
+            self.migrate_legacy()
+        finally:
+            self.save_manifest()  # keep entries for files already written even if a later step fails
+        if not self.quiet and not self.dry:
+            self.check_command_on_path()
         if not self.quiet:
             cmd = " ".join([f'"{self.python}"', *flags, "-m", "peer_consult"])
             print(f"\npeer-consult {__version__}\npython  : {self.python} {' '.join(flags)}\nconfig  : {cfg}\n"
                   f"next    : {cmd} doctor")
+            if self.dry:
+                print("\nDRY RUN: nothing was written or removed.")
         return 0
 
     def write_config(self, claude_model: str | None, claude_auth: str | None) -> Path:
@@ -307,7 +324,7 @@ class Installer:
             if self.ours_unmodified(f):
                 if not self.dry:
                     f.unlink()
-                self.manifest.pop(str(f), None)
+                self.manifest.pop(mkey(f), None)
                 self.log(f"removed    {f} (Codex skills now live in {skill_roots(self.home)['codex']})")
             else:
                 self.log(f"LEFT       {f} (modified or not ours); agy started under the home dir will also see it")
@@ -315,12 +332,17 @@ class Installer:
 
         # 2. Runtime copy + launchers from releases before the pip package.
         runtime = self.root / "runtime"
-        legacy_files = [Path(k) for k in list(self.manifest) if Path(k).is_relative_to(runtime)]
+        runtime_prefix = mkey(runtime) + os.sep
+        legacy_files = [Path(k) for k in list(self.manifest) if k.startswith(runtime_prefix)]
+        had_legacy_runtime = mkey(runtime / "peer_consult.py") in self.manifest
         legacy_files += [self.root / "bin" / n for n in ("peer-consult", "peer-consult.cmd")]
         legacy_files += [self.home / ".local" / "bin" / n for n in ("peer-consult", "peer-consult.cmd")]
         for f in legacy_files:
-            if str(f) in self.manifest:
+            if mkey(f) in self.manifest:
                 self.remove_if_ours(f, "superseded by the installed package")
+        if not had_legacy_runtime:
+            self.prune_empty(self.root / "bin")
+            return
         dist = runtime / "office_dist"
         if dist.is_dir():  # copied wholesale by the old installer, never user-edited
             if not self.dry:
@@ -335,15 +357,28 @@ class Installer:
             self.prune_empty(runtime)
         self.prune_empty(self.root / "bin")
 
+    def check_command_on_path(self) -> None:
+        found = shutil.which("peer-consult")
+        if found is None:
+            print("\nnote: no `peer-consult` command on PATH. The skills do not need it (they call the interpreter\n"
+                  "      directly), but for terminal use install with `pipx install peer-consult` or `uv tool install peer-consult`.")
+        elif mkey(found).startswith(mkey(self.root) + os.sep):
+            print(f"\nwarning: `peer-consult` on PATH is the old launcher {found}. Remove it, or put the installed\n"
+                  "         package's command first (`pipx install --force peer-consult` / `uv tool install --force peer-consult`).")
+
     # -- uninstall -------------------------------------------------------------------------------
     def uninstall(self) -> int:
-        for key in sorted(self.manifest):
-            self.remove_if_ours(Path(key), "managed by peer-consult")
-        for root in skill_roots(self.home).values():
-            for name in ("ask-claude", "ask-codex", "ask-agy", "council"):
-                self.prune_empty(root / name / "agents", root / name)
-        self.save_manifest()
-        if not self.quiet:
+        try:
+            for key in sorted(self.manifest):
+                self.remove_if_ours(Path(key), "managed by peer-consult")
+            for root in skill_roots(self.home).values():
+                for name in ("ask-claude", "ask-codex", "ask-agy", "council"):
+                    self.prune_empty(root / name / "agents", root / name)
+        finally:
+            self.save_manifest()
+        if not self.quiet and self.dry:
+            print("\nDRY RUN: nothing was removed.")
+        elif not self.quiet:
             print(f"\nKept {self.root} (config, run history, budget state). Delete it yourself if you no longer need it.\n"
                   "Then remove the package: `pipx uninstall peer-consult`, `uv tool uninstall peer-consult` or "
                   "`pip uninstall peer-consult`.")
@@ -363,9 +398,11 @@ def build_parser(prog: str = "peer-consult setup") -> argparse.ArgumentParser:
 
 def setup_main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
-    home = Path(a.home) if a.home else Path.home()
-    # abspath, not resolve(): resolving a venv's python symlink would escape the venv.
-    python = os.path.abspath(a.python) if os.path.exists(a.python) else a.python
+    home = Path(a.home).absolute() if a.home else Path.home()
+    # abspath, not resolve(): resolving a venv's python symlink would escape the venv. A bare name such
+    # as `python3` is looked up on PATH now, so the skills never depend on PATH later.
+    python = a.python if os.path.exists(a.python) else (shutil.which(a.python) or a.python)
+    python = os.path.abspath(python)
     flags = probe_interpreter_flags(python)
     return Installer(home, python, a.force, a.dry_run).run(a.claude_model, a.claude_auth, flags)
 
@@ -376,5 +413,5 @@ def uninstall_main(argv: list[str] | None = None) -> int:
     ap.add_argument("--home", help="uninstall from this home directory instead of ~ (testing)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
-    home = Path(a.home) if a.home else Path.home()
+    home = Path(a.home).absolute() if a.home else Path.home()
     return Installer(home, sys.executable, force=False, dry=a.dry_run).uninstall()

@@ -524,7 +524,10 @@ def test_installer_migrates_pre_package_runtime_and_launchers(tmp_path):
     assert not (root / "bin").exists()
     assert foreign.read_bytes() == b"not ours"
     manifest = json.loads((root / "install-manifest.json").read_text())
-    assert not any("runtime" in k and k != str(edited) for k in manifest)
+    assert not any("runtime" in k or "bin" in Path(k).parts for k in manifest)  # nothing legacy is tracked any more
+    out2 = _install(home)
+    assert "LEFT" not in out2 and "removed" not in out2  # reported once, not on every run
+    assert edited.read_bytes() == b"user patched this"
 
 
 def test_uninstall_removes_only_unmodified_managed_files(tmp_path):
@@ -558,3 +561,53 @@ def test_skill_command_works_from_unrelated_cwd(tmp_path):
                        capture_output=True, cwd=str(elsewhere), env=ev)
     assert p.returncode == 0, p.stderr
     assert json.loads(p.stdout)["status"] == "dry_run"
+
+
+def test_fallback_interpreter_flags_never_put_cwd_on_sys_path(tmp_path, monkeypatch):
+    """`-E` alone would import a planted typer.py from the agent's cwd; the fallback must include -P."""
+    from peer_consult import installer
+
+    calls = []
+
+    def fake_run(argv, **kw):
+        calls.append(argv)
+        ok = "-I" not in argv  # simulate a `pip install --user` that -I cannot see
+
+        class R:
+            returncode = 0 if ok else 1
+            stdout = f"peer-consult {installer.__version__}" if ok else ""
+        return R()
+
+    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+    flags = installer.probe_interpreter_flags(sys.executable)
+    assert flags == ["-E", "-P"]
+    monkeypatch.undo()
+
+    planted = tmp_path / "repo"
+    planted.mkdir()
+    (planted / "typer.py").write_text("raise SystemExit('HIJACKED from cwd')")
+    p = subprocess.run([sys.executable, *flags, "-m", "peer_consult", "--version"], capture_output=True, text=True,
+                       cwd=str(planted), env=_clean_env())
+    assert p.returncode == 0 and "HIJACKED" not in p.stdout + p.stderr
+
+
+def test_installer_relative_home_and_rerun_is_quiet(tmp_path):
+    rel_home = "rel home"
+    p = subprocess.run([*CLI, "setup", "--home", rel_home], capture_output=True, text=True, env=_clean_env(), cwd=str(tmp_path))
+    assert p.returncode == 0, p.stdout + p.stderr
+    manifest = json.loads((tmp_path / rel_home / ".peer-consult" / "install-manifest.json").read_text())
+    assert manifest and all(os.path.isabs(k) for k in manifest)
+    p2 = subprocess.run([*CLI, "setup", "--home", rel_home], capture_output=True, text=True, env=_clean_env(), cwd=str(tmp_path))
+    assert p2.returncode == 0 and "wrote" not in p2.stdout and "LEFT" not in p2.stdout
+
+
+def test_office_token_file_is_private(tmp_path):
+    from peer_consult.office_server import load_or_create_office_token
+
+    state = tmp_path / "state"
+    t1 = load_or_create_office_token(state)
+    t2 = load_or_create_office_token(state)
+    assert t1 == t2 and len(t1) >= 16
+    if os.name != "nt":
+        assert ((state / "office-token").stat().st_mode & 0o777) == 0o600
+        assert (state.stat().st_mode & 0o777) == 0o700

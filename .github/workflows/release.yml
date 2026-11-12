@@ -26,6 +26,10 @@ jobs:
           npm ci
           npm test
           npm run build
+          git diff --exit-code --stat -- ../peer_consult/office_dist || {
+            echo "::error::committed peer_consult/office_dist differs from a fresh build; rebuild and commit before tagging"
+            exit 1
+          }
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

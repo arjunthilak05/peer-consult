@@ -103,6 +103,34 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
+def restrict_to_owner(path: Path, mode: int = 0o600) -> None:
+    """Best-effort chmod to owner-only on POSIX (Windows profile ACLs already restrict access)."""
+    if os.name != "nt":
+        try:
+            os.chmod(path, mode)
+        except OSError:
+            pass
+
+
+def ensure_private_dir(path: Path) -> None:
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    restrict_to_owner(path, 0o700)
+
+
+def create_private_file(path: Path, data: bytes) -> bool:
+    """Create ``path`` with owner-only permissions; False if it already exists (never overwrites)."""
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, data)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return True
+
+
 def scrub_data(val: Any) -> Any:
     """Recursively redact secret-looking strings before persistence or broadcast."""
     if isinstance(val, str):
@@ -121,8 +149,8 @@ class CouncilStore:
     def __init__(self, db_path: Path | None = None):
         self.state_root = home_dir() / "state"
         self.runs_dir = self.state_root / "runs"
-        self.state_root.mkdir(parents=True, exist_ok=True)
-        self.runs_dir.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self.state_root)
+        self.runs_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.db_path = db_path or (self.state_root / "council.db")
         self._lock = threading.RLock()
         self._init_db()
@@ -161,20 +189,8 @@ class CouncilStore:
     def _secret_key(self) -> bytes:
         """Per-installation HMAC key, created atomically with owner-only permissions."""
         key_file = self.state_root / "approval.key"
-        try:
-            fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
-        except FileExistsError:
-            if os.name != "nt":
-                try:
-                    os.chmod(key_file, 0o600)  # tighten keys written by older releases
-                except OSError:
-                    pass
-        else:
-            try:
-                os.write(fd, secrets.token_bytes(32))
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+        if not create_private_file(key_file, secrets.token_bytes(32)):
+            restrict_to_owner(key_file)  # tighten keys written by older releases
         for _ in range(100):
             key = key_file.read_bytes()
             if len(key) >= 32:

@@ -29,6 +29,11 @@ First public release.
   copy and launchers when they are unmodified.
 - The generated `council` skill states that only the human user may approve plan execution.
 - The Codex adviser also hides the `council` skill, not only the `ask-*` skills.
+- Approval tokens are 128-bit and their HMAC covers the stored plan, so a token approves only the
+  plan it was issued for. Tokens issued by pre-1.0 builds no longer verify; use `--approve` or
+  re-plan. Resuming a run that is awaiting approval issues a fresh token.
+- `approval.key`, the office bearer token and the state directory are created owner-only (0600/0700
+  on POSIX).
 
 ### Fixed
 - The synthesis schema-repair path in the test fake CLI was unreachable; it is now covered by tests
