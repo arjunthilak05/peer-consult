@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.11"
-authors = [{ name = "peer-consult contributors" }]
+authors = [{ name = "Arjun Thilak" }]
 keywords = [
     "claude-code", "codex", "antigravity", "gemini", "ai-agents", "multi-agent",
     "code-review", "second-opinion", "council", "llm", "skills",
