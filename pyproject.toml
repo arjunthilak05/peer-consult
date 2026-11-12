@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.11"
-authors = [{ name = "Arjun Thilak" }]
+authors = [{ name = "Arjun Thilak R" }]
 keywords = [
     "claude-code", "codex", "antigravity", "gemini", "ai-agents", "multi-agent",
     "code-review", "second-opinion", "council", "llm", "skills",
@@ -52,10 +52,10 @@ dev = [
 peer-consult = "peer_consult.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/arjunthilakeros/peer-consult"
-Repository = "https://github.com/arjunthilakeros/peer-consult"
-Issues = "https://github.com/arjunthilakeros/peer-consult/issues"
-Changelog = "https://github.com/arjunthilakeros/peer-consult/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/arjunthilak05/peer-consult"
+Repository = "https://github.com/arjunthilak05/peer-consult"
+Issues = "https://github.com/arjunthilak05/peer-consult/issues"
+Changelog = "https://github.com/arjunthilak05/peer-consult/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "peer_consult/__init__.py"

@@ -1,6 +1,6 @@
 # peer-consult
 
-[![CI](https://github.com/arjunthilakeros/peer-consult/actions/workflows/ci.yml/badge.svg)](https://github.com/arjunthilakeros/peer-consult/actions/workflows/ci.yml)
+[![CI](https://github.com/arjunthilak05/peer-consult/actions/workflows/ci.yml/badge.svg)](https://github.com/arjunthilak05/peer-consult/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/peer-consult.svg)](https://pypi.org/project/peer-consult/)
 [![Python](https://img.shields.io/pypi/pyversions/peer-consult.svg)](https://pypi.org/project/peer-consult/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -20,7 +20,7 @@ any one of them you can:
 - **Pixel Office**: watch the council work in a local real-time pixel-art office, inspect each agent,
   approve plans, and replay past runs.
 
-![The Pixel Office during a council discussion](https://raw.githubusercontent.com/arjunthilakeros/peer-consult/main/docs/screenshots/02-meeting-awaiting-approval.png)
+![The Pixel Office during a council discussion](https://raw.githubusercontent.com/arjunthilak05/peer-consult/main/docs/screenshots/02-meeting-awaiting-approval.png)
 
 ## Contents
 
@@ -62,7 +62,7 @@ peer-consult doctor            # add --live for one tiny real consultation again
 ```
 
 To install the latest code from GitHub, use
-`pipx install git+https://github.com/arjunthilakeros/peer-consult`.
+`pipx install git+https://github.com/arjunthilak05/peer-consult`.
 
 `setup` writes these skills (each one calls the exact interpreter peer-consult is installed in, so
 they work no matter what is on `PATH`):
@@ -165,7 +165,7 @@ peer-consult council office  [--host 127.0.0.1] [--port 4173] [--no-browser]
 The office (`council office`) serves the same runs in the browser at `http://127.0.0.1:4173/?token=…`.
 The bearer token is printed on start.
 
-![Peer reviews and disagreements in the office](https://raw.githubusercontent.com/arjunthilakeros/peer-consult/main/docs/screenshots/03-meeting-disagreements.png)
+![Peer reviews and disagreements in the office](https://raw.githubusercontent.com/arjunthilak05/peer-consult/main/docs/screenshots/03-meeting-disagreements.png)
 
 ## Configuration
 
@@ -300,7 +300,7 @@ The design record behind the council is in [docs/architecture.md](docs/architect
 ## Development
 
 ```bash
-git clone https://github.com/arjunthilakeros/peer-consult && cd peer-consult
+git clone https://github.com/arjunthilak05/peer-consult && cd peer-consult
 python -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 

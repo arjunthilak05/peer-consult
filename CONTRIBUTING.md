@@ -5,7 +5,7 @@ Thanks for helping. Bug reports, fixes and new adapters are welcome.
 ## Setup
 
 ```bash
-git clone https://github.com/arjunthilakeros/peer-consult && cd peer-consult
+git clone https://github.com/arjunthilak05/peer-consult && cd peer-consult
 python -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```

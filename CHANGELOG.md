@@ -39,4 +39,4 @@ First public release.
 - The synthesis schema-repair path in the test fake CLI was unreachable; it is now covered by tests
   for both one repair (accepted) and persistent schema failure (run fails).
 
-[1.0.0]: https://github.com/arjunthilakeros/peer-consult/releases/tag/v1.0.0
+[1.0.0]: https://github.com/arjunthilak05/peer-consult/releases/tag/v1.0.0
